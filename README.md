@@ -1,4 +1,4 @@
-# cryptophoto
+# brachinus
 
 AES-256 CBC file encryption library with support for individual files and directory batch operations.
 
