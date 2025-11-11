@@ -5,4 +5,4 @@ __js__ = None
 __js_url__ = None
 
 from cryptophoto.version import __version__
-from cryptophoto.__main__ import AESFileCrypt
+from cryptophoto.__main__ import AES256

@@ -4,39 +4,35 @@ from Crypto.Random import get_random_bytes
 from Crypto.Protocol.KDF import PBKDF2
 import os
 
-class AESFileCrypt:
-    def __init__(self, key=None, password=None):
-        """
-        Initializes the encryptor with AES-256 key.
-        
-        Args:
-            key (bytes, optional): 32-byte key. If None, generates a new one.
-            password (str, optional): Password to derive key from
-        """
+class AES256:
+    def __init__(self, key=None, password=None, salt=None):
         if password is not None:
-            # Deriva uma chave de 32 bytes da senha usando PBKDF2
-            salt = b'fixed_salt_1234'  # Em produção, use um salt aleatório
-            self.key = PBKDF2(password, salt, dkLen=32)
+            # Store password for later use in decryption
+            self.password = password
+            # Use provided salt or generate a random one
+            if salt is None:
+                salt = get_random_bytes(16)
+            self.salt = salt
+            # Derive 32-byte key from password using PBKDF2
+            self.key = PBKDF2(password, salt, dkLen=32, count=100000)
+            
         elif key is None:
             self.key = get_random_bytes(32)
+            self.salt = None
+            self.password = None
         elif len(key) == 32:
             self.key = key
+            self.salt = None
+            self.password = None
         else:
             raise ValueError("Key must be 32 bytes for AES-256")
     
-    def encrypt(self, input_path, output_path):
-        """
-        Encrypts a file using AES-256 CBC.
-        
-        Args:
-            input_path (str): Path to the original file
-            output_path (str): Path to save the encrypted file
-        
-        Returns:
-            bytes: IV used for encryption
-        """
+    def encrypt_file(self, input_path, output_path=None):
         if not os.path.exists(input_path):
             raise FileNotFoundError(f"File not found: {input_path}")
+        
+        if output_path is None:
+            output_path = input_path + '.enc'
         
         # Read file data
         with open(input_path, 'rb') as f:
@@ -49,20 +45,22 @@ class AESFileCrypt:
         # Encrypt with padding
         encrypted_data = cipher.encrypt(pad(file_data, AES.block_size))
         
-        # Save IV + encrypted data
+        # Save salt (if password-based) + IV + encrypted data
         with open(output_path, 'wb') as f:
-            f.write(iv + encrypted_data)
+            if self.salt is not None:
+                f.write(len(self.salt).to_bytes(4, 'big'))  # Salt length
+                f.write(self.salt)                          # Salt
+            f.write(iv)                                     # IV
+            f.write(encrypted_data)                         # Encrypted data
         
-        return iv
+        return {
+            'iv': iv,
+            'salt': self.salt,
+            'input_file': input_path,
+            'output_file': output_path
+        }
     
-    def decrypt(self, input_path, output_path):
-        """
-        Decrypts an encrypted file.
-        
-        Args:
-            input_path (str): Path to the encrypted file
-            output_path (str): Path to save the decrypted file
-        """
+    def decrypt_file(self, input_path, output_path=None):
         if not os.path.exists(input_path):
             raise FileNotFoundError(f"File not found: {input_path}")
         
@@ -70,34 +68,144 @@ class AESFileCrypt:
         with open(input_path, 'rb') as f:
             data = f.read()
         
+        # Check if file has salt (password-based encryption)
+        pointer = 0
+        salt = None
+        
+        # Read salt length and salt if present
+        if len(data) >= 4:
+            salt_length = int.from_bytes(data[:4], 'big')
+            pointer += 4
+            
+            if salt_length > 0 and len(data) >= pointer + salt_length:
+                salt = data[pointer:pointer + salt_length]
+                pointer += salt_length
+        
         # Extract IV (16 bytes) and encrypted data
-        iv = data[:16]
-        encrypted_data = data[16:]
+        iv = data[pointer:pointer + 16]
+        encrypted_data = data[pointer + 16:]
+        
+        # 🔥 CORREÇÃO CRÍTICA: Se o arquivo tem salt, mas nossa instância não tem password,
+        # ou se o salt é diferente, precisamos derivar a chave corretamente
+        if salt is not None and self.password is not None:
+            # Se temos uma password e o arquivo tem salt, derivar a chave com o salt do arquivo
+            key_to_use = PBKDF2(self.password, salt, dkLen=32, count=100000)
+        else:
+            # Caso contrário, usar a chave existente
+            key_to_use = self.key
         
         # Create cipher and decrypt
-        cipher = AES.new(self.key, AES.MODE_CBC, iv)
+        cipher = AES.new(key_to_use, AES.MODE_CBC, iv)
         decrypted_data = unpad(cipher.decrypt(encrypted_data), AES.block_size)
+        
+        # Determine output path
+        if output_path is None:
+            if input_path.endswith('.enc'):
+                output_path = input_path[:-4]
+            else:
+                output_path = input_path + '.dec'
         
         # Save decrypted file
         with open(output_path, 'wb') as f:
             f.write(decrypted_data)
+        
+        return output_path
     
-    def get_key(self):
+    def encrypt_directory(self, directory_path, output_dir=None, extensions=None):
         """
-        Returns the encryption key.
+        Encrypts all files in a directory.
+        
+        Args:
+            directory_path (str): Path to directory
+            output_dir (str, optional): Output directory
+            extensions (list, optional): File extensions to encrypt (e.g., ['.jpg', '.mp4'])
         
         Returns:
-            bytes: AES-256 key
+            list: List of encrypted file paths
         """
-        return self.key
+        if not os.path.exists(directory_path):
+            raise FileNotFoundError(f"Directory not found: {directory_path}")
+        
+        if output_dir is None:
+            output_dir = directory_path + '_encrypted'
+        
+        os.makedirs(output_dir, exist_ok=True)
+        
+        encrypted_files = []
+        
+        for filename in os.listdir(directory_path):
+            file_path = os.path.join(directory_path, filename)
+            
+            if os.path.isfile(file_path):
+                # Check extensions if specified
+                if extensions:
+                    file_ext = os.path.splitext(filename)[1].lower()
+                    if file_ext not in extensions:
+                        continue
+                
+                output_path = os.path.join(output_dir, filename + '.enc')
+                self.encrypt_file(file_path, output_path)
+                encrypted_files.append(output_path)
+        
+        return encrypted_files
+    
+    def decrypt_directory(self, directory_path, output_dir=None):
+        """
+        Decrypts all files in a directory.
+        
+        Args:
+            directory_path (str): Path to directory with encrypted files
+            output_dir (str, optional): Output directory
+        
+        Returns:
+            list: List of decrypted file paths
+        """
+        if not os.path.exists(directory_path):
+            raise FileNotFoundError(f"Directory not found: {directory_path}")
+        
+        if output_dir is None:
+            output_dir = directory_path + '_decrypted'
+        
+        os.makedirs(output_dir, exist_ok=True)
+        
+        decrypted_files = []
+        
+        for filename in os.listdir(directory_path):
+            file_path = os.path.join(directory_path, filename)
+            
+            if os.path.isfile(file_path) and filename.endswith('.enc'):
+                output_filename = filename[:-4]  # Remove .enc extension
+                output_path = os.path.join(output_dir, output_filename)
+                self.decrypt_file(file_path, output_path)
+                decrypted_files.append(output_path)
+        
+        return decrypted_files
+    
+    def get_key_info(self):
+        """
+        Returns key information.
+        
+        Returns:
+            dict: Key information
+        """
+        return {
+            'key': self.key,
+            'key_hex': self.key.hex(),
+            'salt': self.salt,
+            'salt_hex': self.salt.hex() if self.salt else None,
+            'key_type': 'password-derived' if self.salt else 'random-binary'
+        }
     
     def save_key(self, key_path):
         """
-        Saves the key to a file.
+        Saves the key to a file (only for binary keys, not password-based).
         
         Args:
             key_path (str): Path to save the key
         """
+        if self.salt is not None:
+            raise ValueError("Cannot save password-derived key. Save the password and salt instead.")
+        
         with open(key_path, 'wb') as f:
             f.write(self.key)
     
@@ -116,25 +224,13 @@ class AESFileCrypt:
             key = f.read()
         return cls(key=key)
 
-    @classmethod
-    def create_with_password(cls, password):
-        """
-        Creates a new instance with a password-derived key.
-        
-        Args:
-            password (str): Password to derive key from
-        
-        Returns:
-            AESFileCrypt: New instance with password-derived key
-        """
-        return cls(password=password)
+# Utility functions for easy use
+def encrypt_file_with_password(input_path, password, output_path=None):
+    """Utility function to encrypt a file with password in one line."""
+    crypt = AES256(password=password)
+    return crypt.encrypt_file(input_path, output_path)
 
-    @classmethod
-    def create_with_new_key(cls):
-        """
-        Creates a new instance with a randomly generated key.
-        
-        Returns:
-            AESFileCrypt: New instance with random key
-        """
-        return cls()
+def decrypt_file_with_password(input_path, password, output_path=None):
+    """Utility function to decrypt a file with password in one line."""
+    crypt = AES256(password=password)
+    return crypt.decrypt_file(input_path, output_path)
