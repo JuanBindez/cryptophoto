@@ -21,7 +21,7 @@ def main():
     operation_group.add_argument("-sk", "--savekey", help="Save binary AES key to a file", metavar="KEYFILE")
     operation_group.add_argument("-lk", "--loadkey", help="Load key and print info", metavar="KEYFILE")
 
-    # Opções comuns
+
     parser.add_argument("-o", "--output", help="Output file/directory path")
     parser.add_argument("-k", "--keyfile", help="Path to binary key file")
     parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
