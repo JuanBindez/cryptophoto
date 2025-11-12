@@ -172,7 +172,7 @@ Brachinus includes a terminal command: **`brachinus`**
 After installation you can run:
 
 ```sh
-brachinus --help
+brachinus -h
 ```
 
 ---
@@ -182,37 +182,37 @@ brachinus --help
 ### Encrypt a file
 
 ```sh
-brachinus encrypt-file input.txt
+brachinus -ef input.txt
 ```
 
 ### Encrypt a file with password
 
 ```sh
-brachinus encrypt-file input.txt --password "mypassword"
+brachinus -ef input.txt
 ```
 
 ### Decrypt a file
 
 ```sh
-brachinus decrypt-file input.txt.enc --password "mypassword"
+brachinus -df input.txt.enc
 ```
 
 ### Encrypt a directory
 
 ```sh
-brachinus encrypt-dir myfolder --password "mypassword"
+brachinus -ed myfolder
 ```
 
 ### Decrypt a directory
 
 ```sh
-brachinus decrypt-dir myfolder_encrypted --password "mypassword"
+brachinus -dd myfolder_encrypted
 ```
 
 ### Use a keyfile instead of password
 
 ```sh
-brachinus encrypt-file document.pdf --keyfile aes.key
+brachinus -ef document.pdf --keyfile aes.key
 ```
 
 ---
