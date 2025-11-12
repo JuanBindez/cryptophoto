@@ -33,7 +33,7 @@ def main():
     # --------------------------------------------------
 
     if args.encryptfile:
-        password = getpass.getpass("Enter password: ")
+        password = getpass.getpass("[?] Enter password: ")
         aes = AES256(password=password)
         result = aes.encrypt_file(args.encryptfile, args.output)
         print("[+] File encrypted!")
@@ -46,33 +46,33 @@ def main():
             print("Output:", result["output_file"])
 
     elif args.decryptfile:
-        password = getpass.getpass("Enter password: ")
+        password = getpass.getpass("[?] Enter password: ")
         aes = AES256(password=password)
         output = aes.decrypt_file(args.decryptfile, args.output)
         print("[+] File decrypted!")
-        print("Output:", output)
+        print("[*] Output:", output)
 
     elif args.encryptdir:
-        password = getpass.getpass("Enter password: ")
+        password = getpass.getpass("[?] Enter password: ")
         aes = AES256(password=password)
         output_dir = args.output or args.encryptdir + "_encrypted"
         files = aes.encrypt_directory(args.encryptdir, output_dir)
         print("[+] Directory encrypted!")
-        print("Files processed:", len(files))
+        print("[*] Files processed:", len(files))
         if args.verbose:
             for f in files:
-                print(" -", f)
+                print("[+] -", f)
 
     elif args.decryptdir:
-        password = getpass.getpass("Enter password: ")
+        password = getpass.getpass("[?] Enter password: ")
         aes = AES256(password=password)
         output_dir = args.output or args.decryptdir + "_decrypted"
         files = aes.decrypt_directory(args.decryptdir, output_dir)
         print("[+] Directory decrypted!")
-        print("Files processed:", len(files))
+        print("[*] Files processed:", len(files))
         if args.verbose:
             for f in files:
-                print(" -", f)
+                print("[+] -", f)
 
     elif args.keyinfo:
         password = getpass.getpass("Enter password: ")
