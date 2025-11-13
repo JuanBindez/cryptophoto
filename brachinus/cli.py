@@ -6,6 +6,7 @@ import sys
 from brachinus.version import __version__
 from brachinus import AES256, encrypt_file_with_password, decrypt_file_with_password
 
+
 def wai_process_message():
     return "[*] Processing. Please wait..."
 
