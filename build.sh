@@ -5,8 +5,8 @@ set -e
 VERSION=1
 MINOR=2
 PATCH=
-EXTRAVERSION="-rc2"
-NOTES="(#5)"
+EXTRAVERSION="-rc3"
+NOTES="(#5 #6)"
 BRANCH="dev"
 
 if [[ -z $PATCH ]]; then
